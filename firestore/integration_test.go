@@ -1489,6 +1489,69 @@ func TestIntegration_CollectionGroupQueries(t *testing.T) {
 	}
 }
 
+func TestPartitionQuery(t *testing.T) {
+	coll := collectionIDs.New()
+	ctx := context.Background()
+	h := testHelper{t}
+	client := integrationClient(t)
+	cr := client.Collection(coll)
+	subColl := coll + "-sub"
+	// Minimum partition size is 128.
+	documentCount := 128*2 + 127
+	var want []string
+	for j := 0; j < documentCount; j++ {
+		dr1 := cr.NewDoc()
+		scr := dr1.Collection(subColl)
+		doc := fmt.Sprintf("cg-doc%03d", j)
+		dr2 := scr.Doc(doc)
+		want = append(want, dr2.Path)
+		h.mustSet(dr2, map[string]int{"id": j})
+		defer h.mustDelete(dr2)
+	}
+	cg := client.CollectionGroup(subColl)
+	_, partitions, err := cg.PartitionQuery(ctx, 3)
+	if err != nil {
+		t.Fatalf("PartitionQuery: %v", err)
+	}
+	var got []string
+	for _, partition := range partitions {
+		it := partition.Documents(ctx)
+		docSnapshots, err := it.GetAll()
+		if err != nil {
+			t.Errorf("query.Documents(ctx).GetAll(): %v", err)
+		}
+		for _, docSnapshot := range docSnapshots {
+			got = append(got, docSnapshot.Ref.Path)
+		}
+	}
+	sort.Strings(want)
+	sort.Strings(got)
+	if len(got) != len(want) {
+		t.Errorf("got lenght:%v, want lenght:%v", len(got), len(want))
+	}
+	if diff := testutil.Diff(got, want); diff != "" {
+		t.Errorf("-got, +want:\n%s", diff)
+	}
+}
+
+func TestEmptyPartitionedQuery(t *testing.T) {
+	coll := collectionIDs.New()
+	ctx := context.Background()
+	client := integrationClient(t)
+	subColl := coll + "-sub"
+	cg := client.CollectionGroup(subColl)
+	q, partitions, err := cg.PartitionQuery(ctx, 3)
+	if err != nil {
+		t.Fatalf("PartitionQuery: %v", err)
+	}
+	if len(partitions) != 0 {
+		t.Errorf("got lenght: %v, want lenght: 0", len(partitions))
+	}
+	if !(q.allDescendants && q.orders[0].isDocumentID()) {
+		t.Errorf("query doesn't match the constraint of query that is producing the partition)")
+	}
+}
+
 func codeEq(t *testing.T, msg string, code codes.Code, err error) {
 	if status.Code(err) != code {
 		t.Fatalf("%s:\ngot <%v>\nwant code %s", msg, err, code)
