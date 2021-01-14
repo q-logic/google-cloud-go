@@ -389,11 +389,16 @@ func (q *Query) fieldValuesToCursorValues(fieldValues []interface{}) ([]*pb.Valu
 		if ord.isDocumentID() {
 			// TODO(jba): support DocumentRefs as well as strings.
 			// TODO(jba): error if document ref does not belong to the right collection.
-			docID, ok := fval.(string)
+			cursor, ok := fval.(*pb.Cursor)
 			if !ok {
-				return nil, fmt.Errorf("firestore: expected doc ID for DocumentID field, got %T", fval)
+				docID, ok := fval.(string)
+				if !ok {
+					return nil, fmt.Errorf("firestore: expected doc ID or cursor for DocumentID field, got %T", fval)
+				}
+				vals[i] = &pb.Value{ValueType: &pb.Value_ReferenceValue{q.path + "/" + docID}}
+			} else {
+				vals[i] = cursor.Values[0]
 			}
-			vals[i] = &pb.Value{ValueType: &pb.Value_ReferenceValue{q.path + "/" + docID}}
 		} else {
 			var sawTransform bool
 			vals[i], sawTransform, err = toProtoValue(reflect.ValueOf(fval))

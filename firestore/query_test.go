@@ -285,6 +285,35 @@ func TestQueryToProto(t *testing.T) {
 			},
 		},
 		{
+			desc: `q.OrderBy(DocumentID, Asc).StartAfter(&pb.Cursor{
+				Values: []*pb.Value{refval(coll.parentPath + "/C/foo")},
+				Before: false,
+			}).EndBefore(&pb.Cursor{
+				Values: []*pb.Value{refval(coll.parentPath + "/C/bar")},
+				Before: true,
+			})`,
+			in: q.OrderBy(DocumentID, Asc).StartAfter(&pb.Cursor{
+				Values: []*pb.Value{refval(coll.parentPath + "/C/foo")},
+				Before: false,
+			}).EndBefore(&pb.Cursor{
+				Values: []*pb.Value{refval(coll.parentPath + "/C/bar")},
+				Before: true,
+			}),
+			want: &pb.StructuredQuery{
+				OrderBy: []*pb.StructuredQuery_Order{
+					{Field: fref1("__name__"), Direction: pb.StructuredQuery_ASCENDING},
+				},
+				StartAt: &pb.Cursor{
+					Values: []*pb.Value{refval(coll.parentPath + "/C/foo")},
+					Before: false,
+				},
+				EndAt: &pb.Cursor{
+					Values: []*pb.Value{refval(coll.parentPath + "/C/bar")},
+					Before: true,
+				},
+			},
+		},
+		{
 			desc: `q.OrderBy("a", Asc).OrderBy("b", Desc).StartAfter(7, 8).EndAt(9, 10)`,
 			in:   q.OrderBy("a", Asc).OrderBy("b", Desc).StartAfter(7, 8).EndAt(9, 10),
 			want: &pb.StructuredQuery{
